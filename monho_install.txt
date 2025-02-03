@@ -1,0 +1,26 @@
+curl -fsSL https://pgp.mongodb.com/server-7.0.asc | sudo gpg --dearmor -o /usr/share/keyrings/mongodb-server-keyring.gpg
+echo "deb [signed-by=/usr/share/keyrings/mongodb-server-keyring.gpg] https://repo.mongodb.org/apt/ubuntu $(lsb_release -cs)/mongodb-org/7.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-7.0.list
+sudo apt update
+sudo apt install -y mongodb-org
+
+sudo systemctl start mongod
+sudo systemctl enable mongod
+
+sudo systemctl status mongod
+
+sudo nano /etc/mongod.conf 
+bindIp: 127.0.0.1 ---> bindIp: 0.0.0.0
+sudo systemctl restart mongod
+
+sudo ufw allow 27017/tcp
+sudo ufw reload
+sudo ufw status
+
+mongosh
+exit
+
+-----------------------------------------------------------------------------
+sudo apt install -y mongodb-clients
+mongosh --host <DATACENTER_IP> --port 27017
+
+
