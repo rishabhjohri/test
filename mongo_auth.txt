@@ -16,3 +16,10 @@ MONGO_URI = "mongodb://admin:adminpass@192.168.56.107:27017/auth_service?authSou
 --------------------
 
 sudo docker run -d --name auth-container --network auth-network -p 8000:8000 -e MONGO_URI="mongodb://admin:adminpass@192.168.56.105:27017/auth_service?authSource=admin" auth-service
+==================
+RUN FROM ANY VM OR LOCAL MACHINE: 
+
+curl -X POST http://192.168.56.108:8000/api/auth/register -H "Content-Type: application/json" -d "{\"username\":\"testuser\", \"email\":\"test@example.com\", \"password\":\"securepassword\"}"
+
+
+curl -X POST http://192.168.56.108:8000/api/auth/login -H "Content-Type: application/json" -d "{\"email\":\"test@example.com\", \"password\":\"securepassword\"}"
