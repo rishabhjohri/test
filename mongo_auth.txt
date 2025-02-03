@@ -1,0 +1,13 @@
+docker stop mongodb
+docker rm mongodb
+
+docker run -d --name mongodb -p 27017:27017 -e MONGO_INITDB_ROOT_USERNAME=admin -e MONGO_INITDB_ROOT_PASSWORD=adminpass --restart unless-stopped mongo:4.2 --bind_ip_all
+docker exec -it mongodb mongo
+
+use admin
+db.auth("admin", "adminpass")
+
+db.createUser({user: "admin",pwd: "adminpass",roles: [{ role: "root", db: "admin" }]})
+db.auth("admin", "adminpass")
+show dbs
+
