@@ -11,3 +11,5 @@ db.createUser({user: "admin",pwd: "adminpass",roles: [{ role: "root", db: "admin
 db.auth("admin", "adminpass")
 show dbs
 
+-----------------------------------------------------------------
+MONGO_URI = "mongodb://admin:adminpass@192.168.56.107:27017/auth_service?authSource=admin"
