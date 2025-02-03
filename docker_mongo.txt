@@ -1,0 +1,90 @@
+To install **MongoDB** in the **Datacenter VM** using **Docker**, follow these steps:
+
+---
+
+### **1️⃣ Pull MongoDB Docker Image**
+SSH into **Datacenter VM**, then pull the official MongoDB image:
+```sh
+docker pull mongo:4.2
+```
+*(Replace `4.2` with the version you want, or use `mongo:latest`)*
+
+---
+
+### **2️⃣ Run MongoDB Container**
+Start a MongoDB container with authentication:
+```sh
+docker run -d \
+  --name mongodb \
+  -p 27017:27017 \
+  -e MONGO_INITDB_ROOT_USERNAME=admin \
+  -e MONGO_INITDB_ROOT_PASSWORD=adminpass \
+  --restart unless-stopped \
+  mongo:4.2
+```
+- `-d` → Runs in detached mode.
+- `--name mongodb` → Container name.
+- `-p 27017:27017` → Maps port **27017** for external access.
+- `-e MONGO_INITDB_ROOT_USERNAME=admin` → Sets the **admin** username.
+- `-e MONGO_INITDB_ROOT_PASSWORD=adminpass` → Sets the **admin** password.
+- `--restart unless-stopped` → Ensures MongoDB starts on VM reboot.
+
+---
+
+### **3️⃣ Verify Container is Running**
+Check if the MongoDB container is up:
+```sh
+docker ps
+```
+You should see a **running** container named `mongodb`.
+
+If the container is **not running**, check logs:
+```sh
+docker logs mongodb
+```
+
+---
+
+### **4️⃣ Test MongoDB Connection**
+Run a shell inside the MongoDB container:
+```sh
+docker exec -it mongodb bash
+```
+Then, enter the MongoDB shell:
+```sh
+mongo -u admin -p adminpass --authenticationDatabase admin
+```
+If this works, **MongoDB is installed and accessible.** 🚀
+
+---
+
+### **5️⃣ Configure MongoDB for External Access (Optional)**
+By default, MongoDB listens on `localhost` inside the container. To allow **remote** access from the **Server VM**, modify the startup command:
+
+```sh
+docker run -d \
+  --name mongodb \
+  -p 27017:27017 \
+  -e MONGO_INITDB_ROOT_USERNAME=admin \
+  -e MONGO_INITDB_ROOT_PASSWORD=adminpass \
+  --restart unless-stopped \
+  mongo:4.2 --bind_ip_all
+```
+
+Now, **Server VM** can connect using:
+```sh
+mongo --host 192.168.X.X -u admin -p adminpass --authenticationDatabase admin
+```
+*(Replace `192.168.X.X` with Datacenter VM’s IP.)*
+
+---
+
+### **Next Steps**
+Now, update your **Server VM's** FastAPI microservice to use this **MongoDB URI**:
+```sh
+MONGO_URI = "mongodb://admin:adminpass@192.168.X.X:27017/?authSource=admin"
+```
+
+Then, restart your **auth-service** container and test.
+
+Let me know if you hit any issues! 🚀
