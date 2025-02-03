@@ -13,3 +13,6 @@ show dbs
 
 -----------------------------------------------------------------
 MONGO_URI = "mongodb://admin:adminpass@192.168.56.107:27017/auth_service?authSource=admin"
+--------------------
+
+sudo docker run -d --name auth-container --network auth-network -p 8000:8000 -e MONGO_URI="mongodb://admin:adminpass@192.168.56.105:27017/auth_service?authSource=admin" auth-service
