@@ -1,17 +1,24 @@
 #!/bin/bash
 
-echo " Step 1: Installing required tools..."
-sudo apt update && sudo apt install -y google-cloud-cli python3-pip bc htop
+echo "🚀 Step 1: Installing required tools..."
+sudo apt update && sudo apt install -y stress bc htop google-cloud-cli python3-pip
 
-echo " Tools installed: google-cloud-cli, python3-pip, bc, htop"
+echo "✔ Tools installed: stress, bc, htop, GCP SDK"
 
-echo " Step 2: Creating monitor.sh script..."
+echo "🚀 Step 2: Setting Up GCP SDK"
+gcloud auth login
+gcloud config set project YOUR_PROJECT_ID
+gcloud config set compute/zone YOUR_COMPUTE_ZONE
+
+echo "✔ GCP SDK configured."
+
+echo "🚀 Step 3: Creating monitor.sh script..."
 cat << 'EOF' > monitor.sh
 #!/bin/bash
 
 # Function to migrate workload to GCP if CPU exceeds 75%
 migrate_workload() {
-    echo " Migrating workload to GCP VM..."
+    echo "📤 Migrating workload to GCP VM..."
 
     INSTANCE_NAME="autoscale-vm"
     ZONE="us-central1-a"  # Change to your preferred zone
@@ -20,7 +27,7 @@ migrate_workload() {
     INSTANCE_CHECK=$(gcloud compute instances list --filter="name=${INSTANCE_NAME}" --format="value(name)")
 
     if [[ -z "$INSTANCE_CHECK" ]]; then
-        echo " Instance does not exist. Creating a new one..."
+        echo "⚠️ Instance does not exist. Creating a new one..."
         gcloud compute instances create "$INSTANCE_NAME" \
             --zone="$ZONE" \
             --machine-type="e2-standard-2" \
@@ -28,9 +35,9 @@ migrate_workload() {
             --image-project="ubuntu-os-cloud" \
             --tags=http-server
 
-        echo " GCP instance $INSTANCE_NAME created successfully."
+        echo "✔ GCP instance $INSTANCE_NAME created successfully."
     else
-        echo " Instance $INSTANCE_NAME already exists."
+        echo "✔ Instance $INSTANCE_NAME already exists."
     fi
 
     # Transfer compute.py to the instance
@@ -39,7 +46,7 @@ migrate_workload() {
     # SSH into the instance and execute compute.py
     gcloud compute ssh ubuntu@$INSTANCE_NAME --zone=$ZONE --command="python3 ~/compute.py"
 
-    echo " Workload migrated and executed in the cloud."
+    echo "✔ Workload migrated and executed in the cloud."
 }
 
 while true; do
@@ -50,7 +57,7 @@ while true; do
 
     # Check if CPU exceeds threshold (75%)
     if (( $(echo "$CPU_USAGE > 75" | bc -l) )); then
-        echo " CPU usage exceeded 75%. Migrating workload to GCP..."
+        echo "⚠️ CPU usage exceeded 75%. Migrating workload to GCP..."
         migrate_workload
         break  # Stop monitoring after migration
     fi
@@ -62,15 +69,15 @@ EOF
 # Make the script executable
 chmod +x monitor.sh
 
-echo " monitor.sh created successfully."
+echo "✔ monitor.sh created successfully."
 
-echo " Step 3: Running compute.py to generate CPU load..."
+echo "🚀 Step 4: Running compute.py to generate CPU load..."
 nohup python3 compute.py > compute.log 2>&1 &
 
-echo " compute.py is running in the background."
+echo "✔ compute.py is running in the background."
 
-echo " Step 4: Running monitor.sh to track CPU usage..."
+echo "🚀 Step 5: Running monitor.sh to track CPU usage..."
 nohup ./monitor.sh > monitor.log 2>&1 &
 
-echo " Setup and monitoring started."
-echo " Check logs using: cat monitor.log"
+echo "✔ Setup and monitoring started."
+echo "🛑 Check logs using: cat monitor.log"
