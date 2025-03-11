@@ -1,51 +1,38 @@
 #!/bin/bash
 
 echo " Step 1: Installing required tools..."
-sudo apt update && sudo apt install -y stress bc htop google-cloud-cli python3-pip
+sudo apt update && sudo apt install -y google-cloud-cli python3-pip bc htop
 
-echo " Tools installed: stress, bc, htop, GCP SDK"
+echo " Tools installed: google-cloud-cli, python3-pip, bc, htop"
 
-echo " Step 2: Setting Up GCP SDK"
-gcloud auth login
-gcloud config set project YOUR_PROJECT_ID
-gcloud config set compute/zone YOUR_COMPUTE_ZONE
-
-echo " GCP SDK configured."
-
-echo " Step 3: Creating monitor.sh script..."
+echo " Step 2: Creating monitor.sh script..."
 cat << 'EOF' > monitor.sh
 #!/bin/bash
 
-# Function to migrate workload to GCP using SCP
+# Function to migrate workload to GCP if CPU exceeds 75%
 migrate_workload() {
-    echo " Checking if GCP instance exists..."
+    echo " Migrating workload to GCP VM..."
 
-    # Set instance variables
     INSTANCE_NAME="autoscale-vm"
     ZONE="us-central1-a"  # Change to your preferred zone
-    MACHINE_TYPE="e2-standard-2"  # Adjust machine type if needed
-    IMAGE_FAMILY="ubuntu-2204-lts"
-    IMAGE_PROJECT="ubuntu-os-cloud"
 
-    # Check if instance exists
+    # Check if instance exists, if not, create it
     INSTANCE_CHECK=$(gcloud compute instances list --filter="name=${INSTANCE_NAME}" --format="value(name)")
 
     if [[ -z "$INSTANCE_CHECK" ]]; then
         echo " Instance does not exist. Creating a new one..."
         gcloud compute instances create "$INSTANCE_NAME" \
             --zone="$ZONE" \
-            --machine-type="$MACHINE_TYPE" \
-            --image-family="$IMAGE_FAMILY" \
-            --image-project="$IMAGE_PROJECT" \
+            --machine-type="e2-standard-2" \
+            --image-family="ubuntu-2204-lts" \
+            --image-project="ubuntu-os-cloud" \
             --tags=http-server
 
-        echo "✔ GCP instance $INSTANCE_NAME created successfully."
+        echo " GCP instance $INSTANCE_NAME created successfully."
     else
-        echo "✔ Instance $INSTANCE_NAME already exists."
+        echo " Instance $INSTANCE_NAME already exists."
     fi
 
-    echo " Migrating workload to GCP VM..."
-    
     # Transfer compute.py to the instance
     gcloud compute scp compute.py ubuntu@$INSTANCE_NAME:~/compute.py --zone=$ZONE
 
@@ -56,24 +43,34 @@ migrate_workload() {
 }
 
 while true; do
+    # Fetch CPU Usage
     CPU_USAGE=$(top -bn1 | grep "Cpu(s)" | sed "s/.*, *\([0-9.]*\)%* id.*/\1/" | awk '{print 100 - $1}')
+
     echo "CPU Usage: $CPU_USAGE%"
+
+    # Check if CPU exceeds threshold (75%)
     if (( $(echo "$CPU_USAGE > 75" | bc -l) )); then
-        echo " CPU usage exceeded 75%. Triggering auto-scaling..."
-        gcloud compute instance-groups managed set-autoscaling my-instance-group \
-            --max-num-replicas 5 \
-            --min-num-replicas 1 \
-            --target-cpu-utilization 0.75 \
-            --cool-down-period 60
+        echo " CPU usage exceeded 75%. Migrating workload to GCP..."
         migrate_workload
+        break  # Stop monitoring after migration
     fi
-    sleep 10
+
+    sleep 5  # Check CPU usage every 5 seconds
 done
 EOF
 
+# Make the script executable
 chmod +x monitor.sh
 
-echo " Step 4: Running monitor.sh..."
+echo " monitor.sh created successfully."
+
+echo " Step 3: Running compute.py to generate CPU load..."
+nohup python3 compute.py > compute.log 2>&1 &
+
+echo " compute.py is running in the background."
+
+echo " Step 4: Running monitor.sh to track CPU usage..."
 nohup ./monitor.sh > monitor.log 2>&1 &
 
-echo " Setup and demonstration completed."
+echo " Setup and monitoring started."
+echo " Check logs using: cat monitor.log"
