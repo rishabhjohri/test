@@ -1,0 +1,15 @@
+sudo apt update && sudo apt install -y curl apt-transport-https ca-certificates gnupg
+
+# Add Google Cloud repository
+echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" | sudo tee -a /etc/apt/sources.list.d/google-cloud-sdk.list > /dev/null
+
+# Import Google Cloud public key
+curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo tee /usr/share/keyrings/cloud.google.gpg > /dev/null
+
+# Install GCP SDK
+sudo apt update && sudo apt install -y google-cloud-cli
+
+# Authenticate and initialize GCP
+gcloud auth login
+gcloud config set project YOUR_PROJECT_ID
+gcloud config set compute/zone YOUR_COMPUTE_ZONE
