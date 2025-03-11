@@ -18,10 +18,41 @@ cat << 'EOF' > monitor.sh
 
 # Function to migrate workload to GCP using SCP
 migrate_workload() {
+    echo " Checking if GCP instance exists..."
+
+    # Set instance variables
+    INSTANCE_NAME="autoscale-vm"
+    ZONE="us-central1-a"  # Change to your preferred zone
+    MACHINE_TYPE="e2-standard-2"  # Adjust machine type if needed
+    IMAGE_FAMILY="ubuntu-2204-lts"
+    IMAGE_PROJECT="ubuntu-os-cloud"
+
+    # Check if instance exists
+    INSTANCE_CHECK=$(gcloud compute instances list --filter="name=${INSTANCE_NAME}" --format="value(name)")
+
+    if [[ -z "$INSTANCE_CHECK" ]]; then
+        echo " Instance does not exist. Creating a new one..."
+        gcloud compute instances create "$INSTANCE_NAME" \
+            --zone="$ZONE" \
+            --machine-type="$MACHINE_TYPE" \
+            --image-family="$IMAGE_FAMILY" \
+            --image-project="$IMAGE_PROJECT" \
+            --tags=http-server
+
+        echo "✔ GCP instance $INSTANCE_NAME created successfully."
+    else
+        echo "✔ Instance $INSTANCE_NAME already exists."
+    fi
+
     echo " Migrating workload to GCP VM..."
-    gcloud compute scp compute.py ubuntu@YOUR_GCP_INSTANCE:~/compute.py --zone=YOUR_COMPUTE_ZONE
-    gcloud compute ssh ubuntu@YOUR_GCP_INSTANCE --zone=YOUR_COMPUTE_ZONE --command="python3 ~/compute.py"
-    echo " Workload migrated to cloud and executed."
+    
+    # Transfer compute.py to the instance
+    gcloud compute scp compute.py ubuntu@$INSTANCE_NAME:~/compute.py --zone=$ZONE
+
+    # SSH into the instance and execute compute.py
+    gcloud compute ssh ubuntu@$INSTANCE_NAME --zone=$ZONE --command="python3 ~/compute.py"
+
+    echo " Workload migrated and executed in the cloud."
 }
 
 while true; do
