@@ -1,11 +1,10 @@
-import time
 import numpy as np
+import time
 
-# Simulated workload: Heavy matrix computation
 def cpu_intensive_task():
     print(" Running heavy computation...")
     
-    size = 3000  # Increase size for more load
+    size = 4000  # Increase size for more load
     matrix_a = np.random.rand(size, size)
     matrix_b = np.random.rand(size, size)
 
@@ -20,3 +19,4 @@ if __name__ == "__main__":
     end_time = time.time()
     
     print(f" Execution Time: {end_time - start_time:.2f} seconds")
+
