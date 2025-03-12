@@ -1,1 +1,216 @@
-Code for gcp vm autoscale
+🚀 Final Guide: Deploying a Flask Web App with Auto-Scaling to GCP
+This guide provides step-by-step instructions to:
+
+Create a web app that monitors CPU usage.
+Run a CPU-intensive task to increase usage.
+Auto-migrate to GCP when CPU > 75%.
+📌 Step 1: Create a Project Directory on the Local VM
+First, open a terminal in your VirtualBox VM and run:
+
+mkdir -p ~/flask-autoscale && cd ~/flask-autoscale
+
+📌 Step 2: Install Dependencies on Local VM
+Run the following command inside the project directory:
+
+sudo apt update && sudo apt install -y python3-flask python3-psutil python3-pip google-cloud-cli
+pip install flask psutil paramiko
+
+📌 Step 3: Create app.py (Flask Web App)
+This Python script:
+
+Runs a Flask web server.
+Monitors CPU usage.
+Triggers auto-scaling to GCP when CPU > 75%.
+Create app.py inside ~/flask-autoscale:
+
+from flask import Flask, render_template, jsonify
+import psutil
+import numpy as np
+import subprocess
+
+app = Flask(__name__)
+
+# GCP Instance Details
+GCP_INSTANCE = "autoscale-vm"
+GCP_ZONE = "us-central1-a"
+GCP_USER = "ubuntu"
+
+# Function to get CPU usage
+def get_cpu_usage():
+    return psutil.cpu_percent(interval=1)
+
+# Function to run heavy computation (to increase CPU usage)
+def cpu_intensive_task():
+    print("🚀 Running heavy computation...")
+    
+    size = 4000  # Large matrix size for high CPU load
+    matrix_a = np.random.rand(size, size)
+    matrix_b = np.random.rand(size, size)
+
+    result = np.matmul(matrix_a, matrix_b)
+    
+    print("✔ Computation completed!")
+
+# Function to migrate workload to GCP
+def migrate_to_gcp():
+    print("⚠️ High CPU detected! Migrating workload to GCP...")
+
+    # Check if the instance exists, create if not
+    instance_check = subprocess.run(
+        f"gcloud compute instances list --filter='name={GCP_INSTANCE}' --format='value(name)'",
+        shell=True, capture_output=True, text=True
+    )
+
+    if not instance_check.stdout.strip():
+        print(f"⚠️ Instance {GCP_INSTANCE} does not exist. Creating it now...")
+        subprocess.run(
+            f"gcloud compute instances create {GCP_INSTANCE} --zone={GCP_ZONE} "
+            f"--machine-type=e2-standard-2 --image-family=ubuntu-2204-lts --image-project=ubuntu-os-cloud",
+            shell=True
+        )
+
+    # Transfer Flask App to GCP
+    subprocess.run(f"gcloud compute scp -r . {GCP_USER}@{GCP_INSTANCE}:~/webapp --zone={GCP_ZONE}", shell=True)
+
+    # SSH to GCP and install dependencies before running app
+    subprocess.run(
+        f"gcloud compute ssh {GCP_USER}@{GCP_INSTANCE} --zone={GCP_ZONE} --command="
+        f"'sudo apt update && sudo apt install -y python3-flask python3-psutil python3-pip && pip install flask psutil paramiko && cd ~/webapp && python3 app.py'",
+        shell=True
+    )
+
+    print("✔ Workload successfully migrated to GCP!")
+
+# Flask Route: Web Dashboard
+@app.route('/')
+def index():
+    return render_template("index.html")
+
+# Flask Route: API to get CPU usage
+@app.route('/cpu_usage')
+def cpu_usage():
+    usage = get_cpu_usage()
+    
+    if usage > 75:
+        migrate_to_gcp()
+
+    return jsonify({"cpu_usage": usage})
+
+# Flask Route: Start Heavy Computation
+@app.route('/start_compute')
+def start_compute():
+    cpu_intensive_task()
+    return jsonify({"status": "Computation started!"})
+
+if __name__ == '__main__':
+    app.run(host="0.0.0.0", port=5000, debug=True)
+
+
+📌 Step 4: Create templates/index.html
+Create a templates/ folder:
+mkdir -p templates
+
+Then, create templates/index.html inside it:
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CPU Monitor</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <h2>Real-time CPU Usage</h2>
+    <canvas id="cpuChart" width="400" height="200"></canvas>
+    <button onclick="startComputation()">Start Computation</button>
+
+    <script>
+        let ctx = document.getElementById('cpuChart').getContext('2d');
+        let cpuChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'CPU Usage (%)',
+                    data: [],
+                    borderColor: 'red',
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: { beginAtZero: true, max: 100 }
+                }
+            }
+        });
+
+        function fetchCPUUsage() {
+            fetch('/cpu_usage')
+                .then(response => response.json())
+                .then(data => {
+                    let currentTime = new Date().toLocaleTimeString();
+                    cpuChart.data.labels.push(currentTime);
+                    cpuChart.data.datasets[0].data.push(data.cpu_usage);
+
+                    if (cpuChart.data.labels.length > 20) {
+                        cpuChart.data.labels.shift();
+                        cpuChart.data.datasets[0].data.shift();
+                    }
+
+                    cpuChart.update();
+                });
+
+            setTimeout(fetchCPUUsage, 1000);
+        }
+
+        function startComputation() {
+            fetch('/start_compute')
+                .then(response => response.json())
+                .then(data => alert(data.status));
+        }
+
+        fetchCPUUsage();
+    </script>
+</body>
+</html>
+
+📌 Step 5: Run the Flask App
+Run the Flask web app on the local VM:
+python3 app.py
+
+📌 Access the web app at:
+http://localhost:5000
+✅ Click "Start Computation" to increase CPU usage.
+✅ If CPU exceeds 75%, the app migrates to GCP.
+
+📌 Step 6: Automate Setup with setup_and_demo.sh
+To automate everything, create setup_and_demo.sh:
+
+#!/bin/bash
+
+echo "🚀 Step 1: Installing required tools..."
+sudo apt update && sudo apt install -y python3-flask python3-psutil python3-pip google-cloud-cli
+
+echo "✔ Tools installed: Flask, psutil, GCP SDK"
+
+echo "🚀 Step 2: Setting Up GCP SDK"
+gcloud auth login
+gcloud config set project YOUR_PROJECT_ID
+gcloud config set compute/zone YOUR_COMPUTE_ZONE
+
+echo "✔ GCP SDK configured."
+
+echo "🚀 Step 3: Deploying Flask App Locally..."
+nohup python3 app.py > app.log 2>&1 &
+
+echo "✔ Web App is running locally at http://localhost:5000"
+
+echo "🚀 Step 4: Monitoring CPU Usage & Migrating to GCP if needed..."
+nohup python3 -c "
+import time, requests
+while True:
+    res = requests.get('http://localhost:5000/cpu_usage').json()
+    print('CPU Usage:', res['cpu_usage'])
+    time.sleep(5)
+" > monitor.log 2>&1 &
