@@ -145,3 +145,29 @@ SELECT name, department, salary
 FROM employees
 WHERE salary BETWEEN 40000 AND 60000
 """).show()
+
+#####################+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+joined_df = employees_df.join(
+    sales_df,
+    employees_df.employee_id == sales_df.employee_id,
+    "inner"
+)
+
+# Total sales amount by department
+joined_df.groupBy("department").sum("amount").show()
+
+# Task 1: Find top-selling employee by sales amount
+top_selling_employee_df = joined_df.groupBy("employee_id", "name") \
+    .sum("amount") \
+    .withColumnRenamed("sum(amount)", "total_sales") \
+    .orderBy("total_sales", ascending=False) \
+    .limit(1)
+
+top_selling_employee_df.show()
+
+# Task 2: Show total sales per location
+sales_per_location_df = joined_df.groupBy("location") \
+    .sum("amount") \
+    .withColumnRenamed("sum(amount)", "total_sales")
+
+sales_per_location_df.show()
