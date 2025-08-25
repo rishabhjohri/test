@@ -244,3 +244,13 @@ employees_df = employees_df.withColumn("location_category", categorize_location_
 # Show results
 employees_df.select("name", "location", "location_category").show(10)
 
+#--------------------------------%%%%%%%%%%%%%%%%%%%%%%%%-----------------------------------#
+spark = SparkSession.builder \
+    .appName("HiveIntegration") \
+    .enableHiveSupport() \
+    .getOrCreate()
+
+employees_df.write.saveAsTable("default.employees_hive")
+spark.sql("SELECT * FROM employees_hive LIMIT 5").show()
+employees_df.cache()
+employees_df.explain(True)
