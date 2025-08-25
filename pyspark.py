@@ -102,3 +102,20 @@ sales_df = spark.read.csv("Sales.csv", header=True, inferSchema=True)
 sales_df.show(5)
 sales_df.printSchema()
 
+##-----------------------------------------------------------------------##
+# Select specific columns
+employees_df.select("name", "salary").show(5)
+
+# Filter employees with salary > 50000
+employees_df.filter(employees_df.salary > 50000).show()
+
+# Count employees by department
+employees_df.groupBy("department").count().show()
+
+# Task 1: Find employees in IT department
+it_employees_df = employees_df.filter(employees_df.department == "IT")
+it_employees_df.show()
+
+# Task 2: Count employees per location
+employees_by_location_df = employees_df.groupBy("location").count()
+employees_by_location_df.show()
