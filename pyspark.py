@@ -190,3 +190,13 @@ from pyspark.sql.functions import col
 employees_df = employees_df.withColumn("total_comp", col("salary") + col("bonus"))
 
 employees_df.show(5)
+#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1
+# Drop duplicate employee_id before saving
+joined_df_cleaned = joined_df.drop(sales_df.employee_id)
+
+# Save as Parquet
+joined_df_cleaned.write.mode("overwrite").parquet("output/department_sales")
+
+# Read back the Parquet file
+dept_sales_df = spark.read.parquet("output/department_sales")
+dept_sales_df.show(5)
