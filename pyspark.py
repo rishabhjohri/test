@@ -32,3 +32,47 @@ df_sales.show()
 # Step 8: Observe DAG and Lineage
 # Go to Spark UI (usually http://localhost:4040) in your browser
 # Check Jobs and Stages, click DAG Visualization for your job, observe lineage
+
+
+#--------------------------------------------------------------------------------#
+
+# Step 9: Broadcast and Accumulator (Optional Add-on)
+
+# Broadcast a list of premium products
+premium_products = ["Laptop", "Camera", "Smartwatch"]
+broadcast_premium = spark.sparkContext.broadcast(premium_products)
+
+# Accumulator to count total sales processed
+sales_accum = spark.sparkContext.accumulator(0)
+
+# Filter for premium products and count sales
+premium_sales = sales_rdd.filter(
+    lambda row: row['Product'] in broadcast_premium.value
+).map(
+    lambda row: (row['Product'], row['Amount'])
+)
+
+# Increment accumulator for each sale processed
+def count_sales(row):
+    sales_accum.add(1)
+    return row
+
+premium_sales_counted = premium_sales.map(count_sales)
+
+# Aggregate sales for premium products
+premium_sales_agg = premium_sales_counted.reduceByKey(lambda x, y: x + y)
+premium_sales_agg.persist()
+
+# Show results
+print("Total premium sales processed:", sales_accum.value)
+print("Premium product sales totals:")
+for product, total in premium_sales_agg.collect():
+    print(product, total)
+
+# Step 10: Save Output
+
+# Save RDD output as text file
+premium_sales_agg.saveAsTextFile("premium_product_sales_output")
+
+# Save DataFrame output as CSV (for DataFrame API)
+df_sales.write.csv("product_sales_output", header=True)
