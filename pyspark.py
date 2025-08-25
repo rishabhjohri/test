@@ -200,3 +200,47 @@ joined_df_cleaned.write.mode("overwrite").parquet("output/department_sales")
 # Read back the Parquet file
 dept_sales_df = spark.read.parquet("output/department_sales")
 dept_sales_df.show(5)
+
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@2
+from pyspark.sql.functions import udf
+from pyspark.sql.types import StringType
+
+def categorize_salary(salary):
+    if salary < 30000:
+        return "Low"
+    elif salary < 70000:
+        return "Medium"
+    else:
+        return "High"
+
+categorize_udf = udf(categorize_salary, StringType())
+
+employees_df = employees_df.withColumn("salary_category", categorize_udf(col("salary")))
+employees_df.select("name", "salary", "salary_category").show(10)
+
+
+from pyspark.sql.functions import udf
+from pyspark.sql.types import StringType
+
+
+def categorize_location(location):
+    # You can customize this mapping as needed
+    urban_locations = {"New York", "Los Angeles", "Chicago", "San Francisco", "Boston"}
+    rural_locations = {"Springfield", "Dover", "Bozeman", "Harlan", "Laramie"}
+    
+    if location in urban_locations:
+        return "Urban"
+    elif location in rural_locations:
+        return "Rural"
+    else:
+        return "Other"
+
+# Register the UDF
+categorize_location_udf = udf(categorize_location, StringType())
+
+# Apply the UDF to create a new column
+employees_df = employees_df.withColumn("location_category", categorize_location_udf(col("location")))
+
+# Show results
+employees_df.select("name", "location", "location_category").show(10)
+
