@@ -1,0 +1,11 @@
+customer_id,name,country,age,gender
+1,Customer_1,USA,50,Female
+2,Customer_2,UK,55,Female
+3,Customer_3,India,45,Female
+4,Customer_4,India,38,Male
+5,Customer_5,UK,23,Male
+6,Customer_6,USA,49,Female
+7,Customer_7,Germany,53,Female
+8,Customer_8,India,68,Male
+9,Customer_9,Germany,64,Male
+10,Customer_10,France,18,Male
