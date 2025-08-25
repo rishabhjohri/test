@@ -76,3 +76,16 @@ premium_sales_agg.saveAsTextFile("premium_product_sales_output")
 
 # Save DataFrame output as CSV (for DataFrame API)
 df_sales.write.csv("product_sales_output", header=True)
+
+
+
+import findspark
+findspark.init()
+
+from pyspark.sql import SparkSession
+
+spark = SparkSession.builder \
+    .appName("PySparkSQL_Lab") \
+    .getOrCreate()
+
+print(spark.version)
