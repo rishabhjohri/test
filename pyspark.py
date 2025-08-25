@@ -119,3 +119,29 @@ it_employees_df.show()
 # Task 2: Count employees per location
 employees_by_location_df = employees_df.groupBy("location").count()
 employees_by_location_df.show()
+
+###=====================================================================
+#----------------------------------------------------------------------
+employees_df.createOrReplaceTempView("employees")
+
+# Top 5 highest-paid employees
+spark.sql("""
+SELECT name, department, salary
+FROM employees
+ORDER BY salary DESC
+LIMIT 5
+""").show()
+
+# Average salary per department
+spark.sql("""
+SELECT department, ROUND(AVG(salary),2) as avg_salary
+FROM employees
+GROUP BY department
+""").show()
+
+# SQL query to list employees whose salary is between 40,000 and 60,000
+spark.sql("""
+SELECT name, department, salary
+FROM employees
+WHERE salary BETWEEN 40000 AND 60000
+""").show()
