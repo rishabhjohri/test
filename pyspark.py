@@ -171,3 +171,22 @@ sales_per_location_df = joined_df.groupBy("location") \
     .withColumnRenamed("sum(amount)", "total_sales")
 
 sales_per_location_df.show()
+#$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$444
+from pyspark.sql.functions import col, lit, upper
+
+# Fill null salaries with 0
+employees_df = employees_df.na.fill({"salary": 0})
+
+# Add bonus column (10% of salary)
+employees_df = employees_df.withColumn("bonus", col("salary") * 0.10)
+
+# Convert names to uppercase
+employees_df = employees_df.withColumn("name_upper", upper(col("name")))
+employees_df.show(5)
+
+from pyspark.sql.functions import col
+
+# Create a new column total_comp = salary + bonus
+employees_df = employees_df.withColumn("total_comp", col("salary") + col("bonus"))
+
+employees_df.show(5)
