@@ -89,3 +89,16 @@ spark = SparkSession.builder \
     .getOrCreate()
 
 print(spark.version)
+#####################################3----------------------------------------------------------------------------#################33
+# Load Employees.csv
+employees_df = spark.read.csv("Employees.csv", header=True, inferSchema=True)
+
+# Display first 5 rows
+employees_df.show(5)
+employees_df.printSchema()
+
+# Load Sales.csv
+sales_df = spark.read.csv("Sales.csv", header=True, inferSchema=True)
+sales_df.show(5)
+sales_df.printSchema()
+
