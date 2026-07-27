@@ -1,0 +1,41 @@
+Session altered.
+ 
+Elapsed: 00:00:00.261
+ 
+PL/SQL procedure successfully completed.
+ 
+Elapsed: 00:00:01.227
+ 
+PL/SQL procedure successfully completed.
+ 
+Elapsed: 00:00:00.616
+DECLARE        
+*
+ERROR at line 1:
+ORA-22835: Buffer too small for CLOB to CHAR or BLOB to RAW conversion (actual: 4106, maximum: 4000)
+ORA-06512: at line 498
+ORA-06512: at line 498
+ 
+https://docs.oracle.com/error-help/db/ora-22835/
+ 
+ 
+More Details :
+https://docs.oracle.com/error-help/db/ora-22835/
+https://docs.oracle.com/error-help/db/ora-06512/
+Elapsed: 00:03:01.719
+ 
+0 rows updated.
+ 
+Elapsed: 00:00:00.532
+ 
+Commit complete.
+ 
+Elapsed: 00:00:00.619
+ 
+0 rows updated.
+ 
+Elapsed: 00:00:00.522
+ 
+Commit complete.
+ 
+Elapsed: 00:00:00.522
