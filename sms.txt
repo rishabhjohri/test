@@ -1,0 +1,363 @@
+
+Session altered.
+
+Elapsed: 00:00:00.265
+
+PL/SQL procedure successfully completed.
+
+Elapsed: 00:00:00.708
+
+PL/SQL procedure successfully completed.
+
+Elapsed: 00:00:00.890
+
+PL/SQL procedure successfully completed.
+
+Elapsed: 00:00:00.660
+
+1 row inserted.
+
+Elapsed: 00:03:23.447
+
+Error starting at line : 296 in command -
+INSERT INTO BKUP_TABLES.CASES_RIB183903_SMS (CASE_NUMBER, PHONE_NUMBER, PHONE_NUMBER_TYPE, OPT_IN, AUTH_REP_AVAILABLE,RECORD_IDENTIFIED_ON)
+WITH
+WITH params AS
+(
+    SELECT DATE '2026-10-01' AS as_of_dt
+    FROM dual
+),
+PREG_INDV AS
+(
+    SELECT /*+ PARALLEL(4) */
+        INDV_ID
+    FROM IE_APP_ONLINE.DC_PREGNANCIES
+    CROSS JOIN params p
+    WHERE p.as_of_dt > EFF_BEGIN_DT
+      AND
+      (
+          EFF_END_DT IS NULL
+          OR EFF_END_DT > p.as_of_dt
+      )
+      AND
+      (
+          (
+              TERMINATION_DT IS NOT NULL
+              AND TERMINATION_DT >= p.as_of_dt
+          )
+          OR
+          (
+              DUE_DT IS NOT NULL
+              AND DUE_DT >= p.as_of_dt
+          )
+      )
+),
+POSTPARTUM_INDIV AS
+(
+    SELECT /*+ PARALLEL(4) */
+        INDV_ID
+    FROM IE_APP_ONLINE.DC_PREGNANCIES
+    CROSS JOIN params p
+    WHERE (TERMINATION_DT IS NOT NULL OR DUE_DT IS NOT NULL)
+      AND NVL(TERMINATION_DT, DUE_DT) <= p.as_of_dt
+      AND NVL(TERMINATION_DT, DUE_DT) >= ADD_MONTHS(p.as_of_dt, -12)
+),
+excluded_indv AS
+(
+    SELECT DISTINCT INDV_ID
+    FROM PREG_INDV
+
+    UNION
+
+    SELECT DISTINCT INDV_ID
+    FROM POSTPARTUM_INDIV
+),
+base_rows AS
+(
+    SELECT /*+ PARALLEL(16) */
+        b.INDV_ID,
+        a.CASE_NUM,
+        a.EDG_TRACE_ID,
+        a.TYPE_OF_ASSISTANCE_CD,
+        a.EDBC_RUN_DT,
+        c.SSN,
+        dp.US_CITIZEN_SW,
+        TRUNC(MONTHS_BETWEEN(p.as_of_dt, c.DOB_DT) / 12) AS AGE_IN_YEARS,
+        d.READ_LANG_CD
+    FROM IE_APP_ONLINE.DC_CASES d
+    JOIN IE_APP_ONLINE.ED_ELIGIBILITY a
+      ON a.CASE_NUM = d.CASE_NUM
+    JOIN IE_APP_ONLINE.ED_INDV_ELIGIBILITY b
+      ON a.CASE_NUM = b.CASE_NUM
+     AND a.EDG_TRACE_ID = b.EDG_TRACE_ID
+    JOIN IE_APP_ONLINE.DC_INDV c
+      ON b.INDV_ID = c.INDV_ID
+    LEFT JOIN IE_APP_ONLINE.DC_DEMOGRAPHICS dp
+      ON c.INDV_ID = dp.INDV_ID
+     AND dp.EFF_END_DT IS NULL
+    CROSS JOIN params p
+    WHERE a.TYPE_OF_ASSISTANCE_CD = 'TP13'
+      AND b.TARGET_SW = 'Y'
+      AND a.PAYMENT_END_DT IS NULL
+      AND a.CG_STATUS_CD = 'AP'
+      AND a.CURRENT_ELIG_IND = 'A'
+
+      AND
+      (
+          d.SMS_PREF_SW = 'Y'
+          OR d.SMS_PREF_SW IS NULL
+          OR d.SMS_PREF_SW = ''
+          OR d.SMS_PREF_SW = ' '
+      )
+
+      -- >>> CHANGED/ADDED: Preserve original verified case-phone requirement
+      AND EXISTS
+      (
+          SELECT 1
+          FROM IE_APP_ONLINE.DC_PHN_XREF XT
+          JOIN IE_APP_ONLINE.DC_PHN_DETAILS DT
+            ON DT.PHN_SEQ_NUM = XT.PHN_SEQ_NUM
+          WHERE XT.PHN_SRC_ID = d.CASE_NUM
+            AND XT.PHN_SRC_TYPE_CD = 'CS'
+            AND DT.VERIFIED_SW = 'Y'
+            AND DT.PHN_TYPE_CD = 'C'
+      )
+
+      AND NOT EXISTS
+      (
+          SELECT 1
+          FROM excluded_indv x
+          WHERE x.INDV_ID = b.INDV_ID
+      )
+),
+latest_sdx AS
+(
+    SELECT y.SSN,
+           y.ALIEN_IND_CD
+    FROM
+    (
+        SELECT
+            d.SSN,
+            d.ALIEN_IND_CD,
+            ROW_NUMBER() OVER
+            (
+                PARTITION BY d.SSN
+                ORDER BY d.SDX_SEQ_NUM DESC
+            ) AS RN
+        FROM IE_APP_ONLINE.IN_SDX d
+        JOIN
+        (
+            SELECT DISTINCT SSN
+            FROM base_rows
+        ) s
+          ON s.SSN = d.SSN
+    ) y
+    WHERE y.RN = 1
+      AND
+      (
+          y.ALIEN_IND_CD NOT IN
+          (
+              'A','B','C','R','Q','K','N','S','X','E','P'
+          )
+          OR y.ALIEN_IND_CD IS NULL
+      )
+),
+sm AS
+(
+    SELECT
+        i.INDV_ID,
+        MAX
+        (
+            CASE
+                WHEN e.TYPE_OF_ASSISTANCE_CD = 'SSPC'
+                THEN 'Y'
+            END
+        ) AS SSPC_ELIGIBLE,
+        MAX
+        (
+            CASE
+                WHEN e.PROGRAM_CD = 'MC'
+                THEN 'Y'
+            END
+        ) AS MC_ELIGIBLE
+    FROM IE_APP_ONLINE.ED_ELIGIBILITY e
+    JOIN IE_APP_ONLINE.ED_INDV_ELIGIBILITY i
+      ON e.CASE_NUM = i.CASE_NUM
+     AND e.EDG_TRACE_ID = i.EDG_TRACE_ID
+    JOIN
+    (
+        SELECT DISTINCT INDV_ID, CASE_NUM
+        FROM base_rows
+    ) b
+      ON b.INDV_ID = i.INDV_ID
+     AND b.CASE_NUM = i.CASE_NUM
+    WHERE e.CURRENT_ELIG_IND = 'A'
+      AND e.CG_STATUS_CD IN ('AP', 'CE')
+      AND i.TARGET_SW = 'Y'
+      AND e.PAYMENT_END_DT IS NULL
+      AND
+      (
+          e.TYPE_OF_ASSISTANCE_CD = 'SSPC'
+          OR e.PROGRAM_CD = 'MC'
+      )
+      AND e.DELETE_SW = 'N'
+    GROUP BY i.INDV_ID
+),
+FINAL_SET AS
+(
+
+    SELECT DISTINCT
+        b.INDV_ID,
+        b.CASE_NUM,
+        b.EDBC_RUN_DT,
+        b.TYPE_OF_ASSISTANCE_CD AS TOA,
+        d.ALIEN_IND_CD,
+        NVL(sm.SSPC_ELIGIBLE, 'N') AS SSPC_ELIGIBLE,
+        NVL(sm.MC_ELIGIBLE, 'N') AS MC_ELIGIBLE,
+        rt.DESCRIPTION
+    FROM base_rows b
+    JOIN latest_sdx d
+      ON d.SSN = b.SSN
+    LEFT JOIN sm
+      ON sm.INDV_ID = b.INDV_ID
+    LEFT JOIN IE_APP_ONLINE.RT_LANGUAGE_MV rt
+      ON rt.CODE = b.READ_LANG_CD
+    WHERE
+    (
+        d.ALIEN_IND_CD NOT IN
+        (
+            'A','B','C','R','Q','K','N','S','X','E','P'
+        )
+        OR
+        (
+            d.ALIEN_IND_CD IS NULL
+            AND b.US_CITIZEN_SW = 'N'
+        )
+    )
+    AND b.AGE_IN_YEARS > 19
+
+),
+PHONE_ONE AS
+(
+    SELECT
+        XT.PHN_SRC_ID AS CASE_NUM,
+        DT.PHN_NUM,
+        DT.PHN_TYPE_CD
+    FROM IE_APP_ONLINE.DC_PHN_XREF XT
+    JOIN IE_APP_ONLINE.DC_PHN_DETAILS DT
+      ON DT.PHN_SEQ_NUM = XT.PHN_SEQ_NUM
+    WHERE XT.PHN_SRC_TYPE_CD = 'CS'
+      AND DT.VERIFIED_SW = 'Y'
+      AND DT.PHN_TYPE_CD = 'C'
+),
+AUTH_REP_FLAG AS
+(
+    SELECT
+        DAR.CASE_NUM,
+        DAR.PRIMARY_PHN_NUM,
+        DAR.EMAIL,
+        DAR.PRIMARY_PHN_TYPE_CD,
+        DAR.CONTACT_METHOD_CD,
+        'Y' AS AUTH_REP_AVAILABLE
+    FROM IE_APP_ONLINE.DC_AUTH_REP DAR
+    WHERE DAR.AUTH_REP_TYPE_CD = 'S'
+      AND (DAR.END_DT IS NULL OR DAR.END_DT > SYSDATE)
+    GROUP BY
+        DAR.CASE_NUM,
+        DAR.PRIMARY_PHN_NUM,
+        DAR.EMAIL,
+        DAR.PRIMARY_PHN_TYPE_CD,
+        DAR.CONTACT_METHOD_CD
+)
+SELECT DISTINCT
+    CASE_NUMBER,
+    PHONE_NUMBER,
+    PHONE_NUMBER_TYPE,
+    OPT_IN,
+    AUTH_REP_AVAILABLE,
+    RECORD_IDENTIFIED_ON
+FROM
+(
+    SELECT DISTINCT /*+ PARALLEL(8) LEADING(FS DC) */
+        FS.CASE_NUM AS CASE_NUMBER,
+        CASE
+            WHEN AR.AUTH_REP_AVAILABLE = 'Y'
+            THEN AR.PRIMARY_PHN_NUM
+            WHEN NVL(AR.AUTH_REP_AVAILABLE, 'N') = 'N'
+                 AND P1.PHN_NUM IS NOT NULL
+            THEN P1.PHN_NUM
+            ELSE 'NA'
+        END AS PHONE_NUMBER,
+        NVL(RTP.DESCRIPTION, 'NA') AS PHONE_NUMBER_TYPE,
+        NVL(UPPER(TRIM(DC.SMS_PREF_SW)), 'N') AS OPT_IN,
+        NVL(AR.AUTH_REP_AVAILABLE, 'N') AS AUTH_REP_AVAILABLE,
+        (
+            SELECT TO_DATE(PARAMETERS, 'MM/DD/YYYY')
+            FROM IE_APP_MRS_OWNER.FW_BATCH_PARAMETER_CONTROL
+            WHERE JOB_ID = 'FW-GLOBL-DLY'
+        ) AS RECORD_IDENTIFIED_ON
+    FROM FINAL_SET FS
+    JOIN IE_APP_ONLINE.DC_CASES DC
+      ON DC.CASE_NUM = FS.CASE_NUM
+     AND
+     (
+         DC.SMS_PREF_SW = 'Y'
+         OR DC.SMS_PREF_SW IS NULL
+         OR DC.SMS_PREF_SW = ''
+         OR DC.SMS_PREF_SW = ' '
+     )
+    INNER JOIN PHONE_ONE P1
+      ON P1.CASE_NUM = FS.CASE_NUM
+    INNER JOIN IE_APP_ONLINE.RT_PHONETYPES_MV RTP
+      ON RTP.CODE = P1.PHN_TYPE_CD
+    LEFT JOIN AUTH_REP_FLAG AR
+      ON AR.CASE_NUM = FS.CASE_NUM
+) A
+WHERE NOT EXISTS
+(
+    SELECT 1
+    FROM BKUP_TABLES.CASES_RIB183903_SMS B
+    WHERE A.CASE_NUMBER = B.CASE_NUMBER
+)
+Error at Command Line : 298 Column : 1
+Error report -
+SQL Error: ORA-00903: invalid table name
+
+https://docs.oracle.com/error-help/db/ora-00903/00903. 00000 -  "invalid table name"
+*Cause:    A table or cluster name was invalid or does not exist.
+           This message was also issued if an invalid cluster name or no
+           cluster name was specified in an ALTER CLUSTER or DROP CLUSTER
+           statement.
+*Action:   Check spelling. A valid table name or cluster name
+           must begin with a letter and may contain only alphanumeric
+           characters and the special characters $, _, and #. The name
+           must be less than or equal to 30 characters and cannot be a
+           reserved word.
+
+More Details :
+https://docs.oracle.com/error-help/db/ora-00903/
+Elapsed: 00:00:01.049
+
+Table BKUP_TABLES.IMPACTED_CASES_RIB183903_SMS created.
+
+Elapsed: 00:00:00.588
+
+1 row inserted.
+
+Elapsed: 00:00:00.632
+
+1 row inserted.
+
+Elapsed: 00:00:00.549
+
+0 rows inserted.
+
+Elapsed: 00:00:00.587
+
+0 rows updated.
+
+Elapsed: 00:00:00.542
+
+0 rows updated.
+
+Elapsed: 00:00:00.719
